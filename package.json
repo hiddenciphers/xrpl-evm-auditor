@@ -1,6 +1,6 @@
 {
   "name": "xrpl-evm-auditor",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A Solidity static analysis tool for XRPL EVM sidechain. Detects common smart contract vulnerabilities.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -40,4 +40,3 @@
     "typescript": "^5.0.4"
   }
 }
-
