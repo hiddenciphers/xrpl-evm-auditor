@@ -1,3 +1,5 @@
+// --- analyzer.test.ts (Updated with new tests) ---
+
 import { analyzeContract } from '../src/analyzer';
 import path from 'path';
 
@@ -26,6 +28,19 @@ describe('Security Analyzer', () => {
     {
       file: 'safe_contract.sol',
       expectedIssues: [] // Safe contract should have no issues
+    },
+    // ✅ New tests added below
+    {
+      file: 'reentrancy_vulnerable.sol',
+      expectedIssues: [
+        'Use of low-level call detected',
+        'Unchecked call return value detected',
+        'Potential reentrancy vulnerability detected'
+      ]
+    },
+    {
+      file: 'unchecked_call_vulnerable.sol',
+      expectedIssues: ['Use of low-level call detected', 'Unchecked call return value detected']
     }
   ];
 

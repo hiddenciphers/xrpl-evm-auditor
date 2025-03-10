@@ -19,7 +19,7 @@ Click **Fork** at the top right of the [main repo](https://github.com/hiddenciph
 
 ### 2. Clone Your Fork
 
-```bash
+```
 git clone https://github.com/YOUR-USERNAME/xrpl-evm-auditor.git
 cd xrpl-evm-auditor
 ```
