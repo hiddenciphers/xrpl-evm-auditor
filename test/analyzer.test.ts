@@ -1,5 +1,5 @@
 import { analyzeContract } from '../src/analyzer';
-import { detectWXRPDepositWithdrawIssues } from '../src/xrpl-wxrp-rules';
+import { detectWXRPDepositWithdrawIssues } from '../src/rules/xrpl-wxrp-rules';
 import path from 'path';
 
 describe('Security Analyzer', () => {

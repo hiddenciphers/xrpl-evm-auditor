@@ -1,6 +1,6 @@
-import { parseSolidityFile } from './parser';
-import { generateMarkdownReport, generateJsonReport } from './reports';
-import { detectBridgeCallWithoutValidation } from './xrpl-rules';
+import { parseSolidityFile } from './parser/parser';
+import { generateMarkdownReport, generateJsonReport } from './reports/reports';
+import { detectBridgeCallWithoutValidation } from './rules/xrpl-rules';
 
 // Global flags for forced behavior on specific test files.
 let globalForcePure = false;
