@@ -6,13 +6,14 @@ A lightweight static analysis tool to detect common security vulnerabilities in 
 
 ## 🚀 Features
 
-- Detects tx.origin misuse.
-- Detects low-level calls: `.call`, `.delegatecall`, `.send`.
-- Detects unchecked ERC20 methods: `transfer`, `approve`, `transferFrom`.
-- Detects block.timestamp misuse.
-- Detects dangerous opcodes: blockhash, selfdestruct.
-- Detects missing access control on state-changing public/external functions.
-- Outputs reports in Markdown or JSON formats.
+- 🔐 Detects tx.origin misuse.
+- ⚙️ Detects low-level calls: .call, .delegatecall, .send.
+- 💸 Detects unchecked ERC20 methods: transfer, approve, transferFrom.
+- ⏰ Detects block.timestamp misuse.
+- ⚔️ Detects dangerous opcodes: blockhash, selfdestruct.
+- 🚪 Detects missing access control on state-changing public/external functions.
+- 💨 Detects gas optimization issues: unbounded loops, storage writes inside loops, multiple writes to the same storage slot.
+- 📜 Outputs reports in Markdown or JSON formats.
 
 ## ⚙️ Installation (Optional for local use)
 
@@ -22,13 +23,15 @@ cd xrpl-evm-auditor
 npm install
 ```
 
-## 💻 Usage (via npx)
+## 💻 Usage (via NPX — no install required)
 
-Run directly without installing:
+Analyze a Solidity contract directly:
 
 ```
 npx xrpl-evm-auditor analyze ./contracts/YourContract.sol --format markdown
 ```
+
+### Options:
 
 - `--format markdown`: Output as Markdown.
 - `--format json`: Output as JSON.
@@ -42,7 +45,7 @@ npx xrpl-evm-auditor analyze ./contracts/YourContract.sol --format markdown
 `npm start analyze ./contracts/sample.sol --format markdown
 `
 
-Example Output:
+Example Output (Markdown):
 
 ```
 # Audit Report for ./contracts/sample.sol

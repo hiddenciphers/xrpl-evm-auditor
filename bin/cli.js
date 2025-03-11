@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { analyzeContract } = require('../dist/analyzer'); // Note: will point to dist/ if you compile TS
+const { analyzeContract } = require('../dist/analyzer'); // Points to built code
 const path = require('path');
 
 // Parse CLI arguments
@@ -13,6 +13,9 @@ Usage:
 
 Example:
   xrpl-evm-auditor analyze ./contracts/MyContract.sol --format markdown
+
+Options:
+  --format markdown|json  Output format (default: markdown)
 `);
   process.exit(1);
 }

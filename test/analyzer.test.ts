@@ -1,5 +1,3 @@
-// --- analyzer.test.ts (Updated with new tests) ---
-
 import { analyzeContract } from '../src/analyzer';
 import path from 'path';
 
@@ -11,7 +9,7 @@ describe('Security Analyzer', () => {
     },
     {
       file: 'low_level_call.sol',
-      expectedIssues: ['Use of low-level call detected']
+      expectedIssues: ['Use of low-level call detected', 'Unchecked call return value detected']
     },
     {
       file: 'unchecked_erc20.sol',
@@ -29,7 +27,7 @@ describe('Security Analyzer', () => {
       file: 'safe_contract.sol',
       expectedIssues: [] // Safe contract should have no issues
     },
-    // ✅ New tests added below
+    // ✅ Combined vulnerability cases
     {
       file: 'reentrancy_vulnerable.sol',
       expectedIssues: [
@@ -41,6 +39,27 @@ describe('Security Analyzer', () => {
     {
       file: 'unchecked_call_vulnerable.sol',
       expectedIssues: ['Use of low-level call detected', 'Unchecked call return value detected']
+    },
+    // ✅ Gas Optimization test cases with consistent wording
+    {
+      file: 'unbounded_loop.sol',
+      expectedIssues: ['Gas optimization issue: Expensive computation inside loop detected', 'Gas optimization issue: Unbounded loop detected']
+    },
+    {
+      file: 'state_write_loop.sol',
+      expectedIssues: ['Gas optimization issue: Storage write inside loop detected']
+    },
+    {
+      file: 'multiple_write_same_slot.sol',
+      expectedIssues: ['Gas optimization issue: Multiple writes to same storage slot']
+    },
+    {
+      file: 'dynamic_array_allocation.sol',
+      expectedIssues: ['Gas optimization issue: Dynamic array allocation detected']
+    },
+    {
+      file: 'expensive_computation_loop.sol',
+      expectedIssues: ['Gas optimization issue: Expensive computation inside loop detected']
     }
   ];
 
@@ -48,37 +67,67 @@ describe('Security Analyzer', () => {
     test(`Analyzes ${file} correctly`, () => {
       const filePath = path.join(__dirname, '../contracts/', file);
 
-      // Mock console.log to capture output from analyzeContract
-      const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+      // Create a more robust console.log spy
+      const originalLog = console.log;
+      let capturedOutput = '';
+      
+      console.log = jest.fn().mockImplementation((output) => {
+        capturedOutput = output;
+      });
 
-      let issues: any[] = [];
-
-      // ✅ Override console.log to capture JSON output when format === 'json'
-      const mockConsoleLog = (output: string) => {
-        try {
-          const parsed = JSON.parse(output);
-          issues = parsed.issues.map((issue: any) => issue.title); // Capture only titles for comparison
-        } catch (e) {
-          // Ignore invalid JSON (if any)
-        }
-      };
-
-      consoleSpy.mockImplementation(mockConsoleLog);
-
-      // ✅ Run the real analyzer with json output
+      // Run the analyzer
       analyzeContract(filePath, 'json');
+      
+      // Restore console.log
+      console.log = originalLog;
 
-      consoleSpy.mockRestore(); // Clean up mock
+      // Parse the captured output
+      let issues: string[] = [];
+      try {
+        const parsed = JSON.parse(capturedOutput);
+        issues = parsed.issues.map((issue: any) => issue.title);
+      } catch (e) {
+        console.error('Failed to parse JSON output:', e);
+      }
 
-      // ✅ Assert expected issues are detected
+      // Log the actual issues for debugging
+      console.log(`Expected issues for ${file}:`, expectedIssues);
+      console.log(`Actual issues for ${file}:`, issues);
+
+      // Assert all expected issues are detected
       expectedIssues.forEach(expected => {
         expect(issues).toContain(expected);
       });
 
-      // ✅ Assert no extra issues if none expected
+      // Assert no extra issues if none expected
       if (expectedIssues.length === 0) {
         expect(issues.length).toBe(0);
+      }
+
+      // Special check for problematic cases
+      if (
+        ['low_level_call.sol', 'reentrancy_vulnerable.sol', 'unchecked_call_vulnerable.sol'].includes(file) &&
+        !issues.includes('Use of low-level call detected')
+      ) {
+        fail(`Expected to find 'Use of low-level call detected' in ${file} but did not`);
+      }
+
+      if (
+        ['state_write_loop.sol'].includes(file) &&
+        !issues.includes('Gas optimization issue: Storage write inside loop detected')
+      ) {
+        fail(`Expected to find 'Gas optimization issue: Storage write inside loop detected' in ${file} but did not`);
+      }
+
+      if (
+        ['multiple_write_same_slot.sol'].includes(file) &&
+        !issues.includes('Gas optimization issue: Multiple writes to same storage slot')
+      ) {
+        fail(`Expected to find 'Gas optimization issue: Multiple writes to same storage slot' in ${file} but did not`);
       }
     });
   });
 });
+
+
+
