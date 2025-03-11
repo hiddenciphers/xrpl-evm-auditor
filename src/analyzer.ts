@@ -307,7 +307,7 @@ function analyzeLoopBody(bodyNode: any, isStateChanging: boolean): { storageWrit
   return { storageWrite, expensiveComputation };
 }
 
-// ✅ EXTRACTED: Check for wXRP deposit/withdraw validation issues
+// Check for wXRP deposit/withdraw validation issues
 function checkWXRPDepositWithdraw(node: any, issues: any[]): { wXRPDepositIssueDetected: boolean, wXRPWithdrawIssueDetected: boolean } {
   const parameters = node.parameters || [];
   const bodyStatements = node.body?.statements || [];
@@ -384,7 +384,7 @@ function checkWXRPDepositWithdraw(node: any, issues: any[]): { wXRPDepositIssueD
   return { wXRPDepositIssueDetected, wXRPWithdrawIssueDetected };
 }
 
-// ✅ NEW FUNCTION: Check for multiple writes to the same storage slot
+// Check for multiple writes to the same storage slot
 function checkMultipleStorageWrites(body: any, isStateChanging: boolean): boolean {
   if (!body || !isStateChanging) return false;
   
@@ -434,7 +434,7 @@ function traverseASTForIssues(ast: any, issues: any[]) {
         // ⚠️ DO NOT return here — we still want low-level call check!
       }
     
-      // ✅ Proceed with low-level call check
+      // Proceed with low-level call check
       let memberName: string | null = null;
     
       if (node.expression.type === 'NameValueExpression' &&
@@ -465,7 +465,7 @@ function traverseASTForIssues(ast: any, issues: any[]) {
         currentFunctionHasLowLevelCall = true;
       }    
     
-      // ✅ Detect ERC20 calls if unchecked
+      // Detect ERC20 calls if unchecked
       const erc20Functions = ['transfer', 'transferFrom', 'approve'];
       if (memberName && erc20Functions.includes(memberName)) {
         issues.push({
@@ -477,7 +477,7 @@ function traverseASTForIssues(ast: any, issues: any[]) {
         currentFunctionHasERC20Call = true;
       }
     
-      // ✅ Dangerous opcodes: blockhash, selfdestruct
+      // Dangerous opcodes: blockhash, selfdestruct
       if (node.expression.type === 'Identifier') {
         if (node.expression.name === 'blockhash') {
           issues.push({
@@ -518,7 +518,7 @@ function traverseASTForIssues(ast: any, issues: any[]) {
       }
     },
 
-    // --- Function Definitions --- REFACTORED TO BE MORE MODULAR
+    // --- Function Definitions ---
     FunctionDefinition(node: any) {
       // Reset function context flags
       currentFunctionReentrancyReported = false;
@@ -550,7 +550,7 @@ function traverseASTForIssues(ast: any, issues: any[]) {
       const body = node.body;
       if (!body) return;
       
-      // ✅ EXTRACTED: Check for wXRP deposit/withdraw validation issues
+      // Check for wXRP deposit/withdraw validation issues
       const wXRPResult = checkWXRPDepositWithdraw(node, issues);
       const { wXRPDepositIssueDetected, wXRPWithdrawIssueDetected } = wXRPResult;
       
@@ -571,7 +571,7 @@ function traverseASTForIssues(ast: any, issues: any[]) {
         });
       }
       
-      // ✅ EXTRACTED: Check for multiple storage writes
+      // Check for multiple storage writes
       let multiWriteDetected = checkMultipleStorageWrites(body, isStateChanging);
       
       // Handle forced multi-write detection for testing
