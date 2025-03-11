@@ -16,6 +16,28 @@ A lightweight static analysis tool to detect common security vulnerabilities in 
 - 💨 Detects gas optimization issues: unbounded loops, storage writes inside loops, multiple writes to the same storage slot.
 - 📜 Outputs reports in Markdown or JSON formats.
 
+## 🎯 Why XRPL EVM-Specific?
+
+While tools like Slither and Mythril are designed for Ethereum, **xrpl-evm-auditor** focuses on **XRPL EVM sidechain**, offering:
+
+| Feature                                    | Why it matters for XRPL EVM                                     |
+| ------------------------------------------ | --------------------------------------------------------------- |
+| **Lightweight CLI-first analyzer**         | Fast security checks for XRPL EVM dApps and grants.             |
+| **Pipeline-ready, GitHub CI/CD friendly**  | Easy integration to **block vulnerable contracts at PR level**. |
+| **Markdown/JSON output**                   | Developer and client-shareable audit reports.                   |
+| **XRPL ecosystem alignment (coming soon)** | Specific rules for XRPL bridges, wrapped XRP, governance.       |
+
+---
+
+## 🔮 Coming Soon (Next Releases)
+
+- 🚀 **Bridge interaction patterns** detection (safe XRPL sidechain bridging).
+- 💎 **Wrapped XRP handling** safety checks.
+- 🔗 **Oracle usage** validation.
+- 🏦 **XRPL-friendly multi-signature** pattern checks.
+- 👥 **Governance models** tailored to XRPL expectations.
+- ⚙️ **GitHub Actions** integration for automatic contract auditing.
+
 ## ⚙️ Installation (Optional for local use)
 
 ```
@@ -65,6 +87,8 @@ Example Output (Markdown):
 ## 📬 Contributions
 
 PRs are welcome! Please open an issue to discuss any major changes or ideas first.
+
+📖 **See [CONTRIBUTING.md](./CONTRIBUTING.md) for detailed contribution guidelines.**
 
 ## 📜 License
 
