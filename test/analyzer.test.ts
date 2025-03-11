@@ -1,4 +1,5 @@
 import { analyzeContract } from '../src/analyzer';
+import { detectWXRPDepositWithdrawIssues } from '../src/xrpl-wxrp-rules';
 import path from 'path';
 
 describe('Security Analyzer', () => {
@@ -60,7 +61,18 @@ describe('Security Analyzer', () => {
     {
       file: 'expensive_computation_loop.sol',
       expectedIssues: ['Gas optimization issue: Expensive computation inside loop detected']
+    },
+
+    // XRPL test cases
+    {
+      file: 'wxrp_deposit_unchecked.sol',
+      expectedIssues: ['Unchecked wXRP deposit value detected']
+    },
+    {
+      file: 'wxrp_withdraw_unchecked.sol',
+      expectedIssues: ['Unchecked wXRP withdraw amount detected']
     }
+    
   ];
 
   testCases.forEach(({ file, expectedIssues }) => {
@@ -127,6 +139,36 @@ describe('Security Analyzer', () => {
       }
     });
   });
+  test('Analyzes xrpl_bridge_unvalidated.sol correctly', () => {
+    const filePath = path.join(__dirname, '../contracts/xrpl_bridge_unvalidated.sol');
+    const expectedIssues = [
+      'Bridge call without destination validation',
+      'Unchecked call return value detected'
+    ];
+  
+    const originalLog = console.log;
+    let capturedOutput = '';
+  
+    console.log = jest.fn().mockImplementation((output) => {
+      capturedOutput = output;
+    });
+  
+    analyzeContract(filePath, 'json');
+    console.log = originalLog;
+  
+    let issues: string[] = [];
+    try {
+      const parsed = JSON.parse(capturedOutput);
+      issues = parsed.issues.map((issue: any) => issue.title);
+    } catch (e) {
+      console.error('Failed to parse JSON output:', e);
+    }
+  
+    console.log('Expected issues for xrpl_bridge_unvalidated.sol:', expectedIssues);
+    console.log('Actual issues for xrpl_bridge_unvalidated.sol:', issues);
+  
+    expect(issues).toEqual(expect.arrayContaining(expectedIssues));
+  });   
 });
 
 

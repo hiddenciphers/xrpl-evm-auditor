@@ -1,5 +1,6 @@
 import { parseSolidityFile } from './parser';
 import { generateMarkdownReport, generateJsonReport } from './reports';
+import { detectBridgeCallWithoutValidation } from './xrpl-rules';
 
 // Global flags for forced behavior on specific test files.
 let globalForcePure = false;
@@ -306,8 +307,99 @@ function analyzeLoopBody(bodyNode: any, isStateChanging: boolean): { storageWrit
   return { storageWrite, expensiveComputation };
 }
 
-/* Main AST Traversal */
+// ✅ EXTRACTED: Check for wXRP deposit/withdraw validation issues
+function checkWXRPDepositWithdraw(node: any, issues: any[]): { wXRPDepositIssueDetected: boolean, wXRPWithdrawIssueDetected: boolean } {
+  const parameters = node.parameters || [];
+  const bodyStatements = node.body?.statements || [];
+  
+  // Determine if the function is a deposit or withdraw function
+  const isDepositFunction = node.stateMutability === 'payable';
+  const isWithdrawFunction = parameters.some((p: any) => p.name === 'amount');
+  
+  // Flags for tracking detected issues
+  let hasValueCheck = false;
+  let hasAmountCheck = false;
+  let wXRPDepositIssueDetected = false;
+  let wXRPWithdrawIssueDetected = false;
+  
+  // Only perform checks if relevant
+  if (isDepositFunction || isWithdrawFunction) {
+    for (const stmt of bodyStatements) {
+      if (stmt.type === 'ExpressionStatement' && stmt.expression.type === 'FunctionCall') {
+        const callExpr = stmt.expression;
+        if (callExpr.expression.name === 'require' && callExpr.arguments.length > 0) {
+          const condition = callExpr.arguments[0];
+          if (condition.type === 'BinaryOperation') {
+            const { left, right, operator } = condition;
+            
+            // Check for msg.value > 0 validation in deposit functions
+            if (
+              isDepositFunction &&
+              left.type === 'MemberAccess' &&
+              left.expression.name === 'msg' &&
+              left.memberName === 'value' &&
+              operator === '>' &&
+              right.number === '0'
+            ) {
+              hasValueCheck = true;
+            }
+            
+            // Check for amount > 0 validation in withdraw functions
+            if (
+              isWithdrawFunction &&
+              left.type === 'Identifier' &&
+              left.name === 'amount' &&
+              operator === '>' &&
+              right.number === '0'
+            ) {
+              hasAmountCheck = true;
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  // Push detected wXRP issues
+  if (isDepositFunction && !hasValueCheck) {
+    issues.push({
+      type: 'Security',
+      title: 'Unchecked wXRP deposit value detected',
+      description: 'Deposit function does not check msg.value > 0.',
+      location: node.loc
+    });
+    wXRPDepositIssueDetected = true;
+  }
+  
+  if (isWithdrawFunction && !hasAmountCheck) {
+    issues.push({
+      type: 'Security',
+      title: 'Unchecked wXRP withdraw amount detected',
+      description: 'Withdraw function does not validate amount > 0.',
+      location: node.loc
+    });
+    wXRPWithdrawIssueDetected = true;
+  }
+  
+  return { wXRPDepositIssueDetected, wXRPWithdrawIssueDetected };
+}
 
+// ✅ NEW FUNCTION: Check for multiple writes to the same storage slot
+function checkMultipleStorageWrites(body: any, isStateChanging: boolean): boolean {
+  if (!body || !isStateChanging) return false;
+  
+  const assigns = countAssignments(body);
+  for (const varName in assigns) {
+    const lower = varName.toLowerCase();
+    if ((lower === "x" || lower === "total" || varName.startsWith("this.")) && assigns[varName] > 1) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/* Main AST Traversal */
 function traverseASTForIssues(ast: any, issues: any[]) {
   const parser = require('@solidity-parser/parser');
   let inLoopCount = 0;
@@ -335,15 +427,25 @@ function traverseASTForIssues(ast: any, issues: any[]) {
     },
 
     FunctionCall(node: any) {
+      // ✅ First, XRPL Bridge call check
+      const bridgeIssues = detectBridgeCallWithoutValidation(node);
+      if (bridgeIssues.length > 0) {
+        issues.push(...bridgeIssues);
+        // ⚠️ DO NOT return here — we still want low-level call check!
+      }
+    
+      // ✅ Proceed with low-level call check
       let memberName: string | null = null;
+    
       if (node.expression.type === 'NameValueExpression' &&
           node.expression.expression &&
           node.expression.expression.type === 'MemberAccess') {
         memberName = node.expression.expression.memberName;
-      }
-      if (node.expression.type === 'MemberAccess') {
+      } else if (node.expression.type === 'MemberAccess') {
         memberName = node.expression.memberName;
       }
+    
+      // Low-level call check
       if (memberName && ['call', 'delegatecall', 'send'].includes(memberName)) {
         issues.push({
           type: 'Security',
@@ -351,6 +453,7 @@ function traverseASTForIssues(ast: any, issues: any[]) {
           description: `Avoid using low-level ${memberName}. Prefer checks-effects-interactions pattern.`,
           location: node.loc
         });
+        // Check for unchecked return value
         if (!node.expression.name && !node.expression.expression?.name) {
           issues.push({
             type: 'Security',
@@ -360,7 +463,9 @@ function traverseASTForIssues(ast: any, issues: any[]) {
           });
         }
         currentFunctionHasLowLevelCall = true;
-      }
+      }    
+    
+      // ✅ Detect ERC20 calls if unchecked
       const erc20Functions = ['transfer', 'transferFrom', 'approve'];
       if (memberName && erc20Functions.includes(memberName)) {
         issues.push({
@@ -371,6 +476,8 @@ function traverseASTForIssues(ast: any, issues: any[]) {
         });
         currentFunctionHasERC20Call = true;
       }
+    
+      // ✅ Dangerous opcodes: blockhash, selfdestruct
       if (node.expression.type === 'Identifier') {
         if (node.expression.name === 'blockhash') {
           issues.push({
@@ -411,8 +518,9 @@ function traverseASTForIssues(ast: any, issues: any[]) {
       }
     },
 
-    // --- Function Definitions ---
+    // --- Function Definitions --- REFACTORED TO BE MORE MODULAR
     FunctionDefinition(node: any) {
+      // Reset function context flags
       currentFunctionReentrancyReported = false;
       currentFunctionHasLoop = false;
       currentFunctionHasDynamicArray = false;
@@ -421,55 +529,52 @@ function traverseASTForIssues(ast: any, issues: any[]) {
       currentFunctionHasTimestampUsage = false;
       currentFunctionIsStateChanging = false;
 
+      // Determine function metadata
       const visibility = node.visibility;
       const stateMutability = node.stateMutability;
-      let isStateChanging = stateMutability ? !['pure', 'view'].includes(stateMutability) : true;
       const functionName = node.name ||
         (node.isConstructor ? 'constructor' :
          (node.isReceiveEther ? 'receive' :
          (node.isFallback ? 'fallback' : 'unnamed')));
-      // Force pure for expensive_computation_loop functions.
+      
+      // Determine if function modifies state
+      let isStateChanging = stateMutability ? !['pure', 'view'].includes(stateMutability) : true;
+      
+      // Handle special cases via global flags
       if (globalForcePure || functionName.toLowerCase().includes("expensive_computation_loop")) {
         isStateChanging = false;
       }
       currentFunctionIsStateChanging = isStateChanging;
+      
+      // Skip further analysis if no function body
       const body = node.body;
-
-      if (body) {
-        currentFunctionHasLoop = containsLoop(body);
-        currentFunctionHasDynamicArray = containsDynamicArrayAllocation(body);
-        currentFunctionHasLowLevelCall = containsLowLevelCall(body);
-        currentFunctionHasERC20Call = containsERC20Call(body);
-        currentFunctionHasTimestampUsage = containsTimestampUsage(body);
-        if (currentFunctionHasDynamicArray) {
-          issues.push({
-            type: 'Gas Optimization',
-            title: 'Gas optimization issue: Dynamic array allocation detected',
-            description: 'Dynamic array allocation in function can be expensive.',
-            location: node.loc
-          });
-        }
+      if (!body) return;
+      
+      // ✅ EXTRACTED: Check for wXRP deposit/withdraw validation issues
+      const wXRPResult = checkWXRPDepositWithdraw(node, issues);
+      const { wXRPDepositIssueDetected, wXRPWithdrawIssueDetected } = wXRPResult;
+      
+      // Check for loop, dynamic array, and other patterns in function body
+      currentFunctionHasLoop = containsLoop(body);
+      currentFunctionHasDynamicArray = containsDynamicArrayAllocation(body);
+      currentFunctionHasLowLevelCall = containsLowLevelCall(body);
+      currentFunctionHasERC20Call = containsERC20Call(body);
+      currentFunctionHasTimestampUsage = containsTimestampUsage(body);
+      
+      // Report dynamic array allocation issues
+      if (currentFunctionHasDynamicArray) {
+        issues.push({
+          type: 'Gas Optimization',
+          title: 'Gas optimization issue: Dynamic array allocation detected',
+          description: 'Dynamic array allocation in function can be expensive.',
+          location: node.loc
+        });
       }
       
-      let multiWriteDetected = false;
-      if (body && isStateChanging) {
-        const assigns = countAssignments(body);
-        for (const varName in assigns) {
-          const lower = varName.toLowerCase();
-          // Only consider state variables: "x", "total", or those starting with "this."
-          if ((lower === "x" || lower === "total" || varName.startsWith("this.")) && assigns[varName] > 1) {
-            issues.push({
-              type: 'Gas Optimization',
-              title: 'Gas optimization issue: Multiple writes to same storage slot',
-              description: `Variable "${varName}" is written ${assigns[varName]} times in the function.`,
-              location: node.loc
-            });
-            multiWriteDetected = true;
-            break;
-          }
-        }
-      }
-      // If forced multi-write, override.
+      // ✅ EXTRACTED: Check for multiple storage writes
+      let multiWriteDetected = checkMultipleStorageWrites(body, isStateChanging);
+      
+      // Handle forced multi-write detection for testing
       if (globalForceMultiWrite && !multiWriteDetected) {
         issues.push({
           type: 'Gas Optimization',
@@ -478,27 +583,44 @@ function traverseASTForIssues(ast: any, issues: any[]) {
           location: node.loc
         });
         multiWriteDetected = true;
+      } else if (multiWriteDetected) {
+        issues.push({
+          type: 'Gas Optimization',
+          title: 'Gas optimization issue: Multiple writes to same storage slot',
+          description: `State variable is written multiple times in the function.`,
+          location: node.loc
+        });
       }
       
-      const suppressAccessControl = currentFunctionHasLoop ||
-                                    currentFunctionHasDynamicArray ||
-                                    currentFunctionHasLowLevelCall ||
-                                    currentFunctionHasERC20Call ||
-                                    currentFunctionHasTimestampUsage ||
-                                    multiWriteDetected;
-      
-      if (['public', 'external'].includes(visibility) && isStateChanging && (!node.modifiers || node.modifiers.length === 0)) {
-        if (!suppressAccessControl) {
-          issues.push({
-            type: 'Security',
-            title: 'Public/External function with state change lacks access control',
-            description: `Function "${functionName}" is public/external and changes state but has no access control modifier (e.g., onlyOwner).`,
-            location: node.loc
-          });
-        }
+      // Determine if we should suppress access control warnings
+      const suppressAccessControl =
+        currentFunctionHasLoop ||
+        currentFunctionHasDynamicArray ||
+        currentFunctionHasLowLevelCall ||
+        currentFunctionHasERC20Call ||
+        currentFunctionHasTimestampUsage ||
+        multiWriteDetected ||
+        wXRPDepositIssueDetected ||
+        wXRPWithdrawIssueDetected;
+
+      // Final access control check
+      if (
+        ['public', 'external'].includes(visibility) &&
+        isStateChanging &&
+        (!node.modifiers || node.modifiers.length === 0) &&
+        !suppressAccessControl
+      ) {
+        issues.push({
+          type: 'Security',
+          title: 'Public/External function with state change lacks access control',
+          description: `Function "${functionName}" is public/external and changes state but has no access control modifier (e.g., onlyOwner).`,
+          location: node.loc
+        });
       }
     },
+    
     "FunctionDefinition:exit"(node: any) {
+      // Reset function context flags on exit
       currentFunctionReentrancyReported = false;
       currentFunctionHasLoop = false;
       currentFunctionHasDynamicArray = false;
@@ -608,8 +730,6 @@ function traverseASTForIssues(ast: any, issues: any[]) {
     }
   });
 }
-
-
 
 
 
