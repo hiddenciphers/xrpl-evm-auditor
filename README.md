@@ -1,6 +1,7 @@
 # 📦 XRPL EVM Solidity Smart Contract Security Analyzer
 
 [![npm version](https://badge.fury.io/js/xrpl-evm-auditor.svg)](https://badge.fury.io/js/xrpl-evm-auditor)
+[![GitHub release](https://img.shields.io/github/v/release/hiddenciphers/xrpl-evm-auditor)](https://github.com/hiddenciphers/xrpl-evm-auditor/releases)
 
 A lightweight static analysis tool to detect common security vulnerabilities in Solidity smart contracts running on the XRPL EVM Sidechain.
 
