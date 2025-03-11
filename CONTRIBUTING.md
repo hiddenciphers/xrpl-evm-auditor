@@ -27,7 +27,7 @@ cd xrpl-evm-auditor
 ### 3. Create a Feature/Issue Branch
 
 ```
-git checkout -b feature/your-feature-nam
+git checkout -b feature/your-feature-name
 ```
 
 ### 4. Install Dependencies
@@ -97,3 +97,114 @@ Open an [Issue](https://github.com/hiddenciphers/xrpl-evm-auditor/issues) if you
 ### 🙌 Thank You for Contributing!
 
 Together, we can build a safer XRPL EVM ecosystem! 🚀
+
+---
+
+## 🧩 Contributing XRPL-Specific Security Rules
+
+We also welcome XRPL EVM-specific security rules to detect vulnerabilities unique to XRPL EVM smart contracts.
+These may include bridge interaction patterns, wXRP handling, oracle usage, or multi-signature patterns.
+
+---
+
+## 🎯 What are XRPL-Specific Rules?
+
+Rules that target XRPL-specific behaviors or vulnerabilities that may not apply to standard EVM chains, including:
+
+Unsafe use of wXRP (wrapped XRP) without proper validation.
+Missing destination validation in XRPL bridge calls (e.g., sendToXRPL).
+Incorrect use of XRPL oracles without verification of data sources.
+Improper implementation of XRPL-aligned multi-signature or governance patterns.
+Attempted native XRP transfers that don't follow XRPL EVM logic.
+
+---
+
+## ✍️ How to Propose a New Rule
+
+To propose a rule, open an Issue using the format below:
+
+<details> <summary>📜 Click to expand Rule Proposal Template</summary>
+
+## 🚨 XRPL-Specific Rule Proposal
+
+### 📜 Describe the Rule
+
+> **What vulnerability, pattern, or behavior should this rule detect?**  
+> Example: Detect unsafe handling of `wXRP.deposit{value: amount}();` without validating value/amount.
+
+---
+
+### 💡 Example of Bad Code (Should Trigger Warning)
+
+```solidity
+contract Example {
+    function bridgeXRP(address dest, uint256 amount) public {
+        bridge.sendToXRPL(dest, amount); // No validation on dest
+    }
+}
+```
+
+---
+
+## ✅ Example of Good Code (Should NOT Trigger Warning)
+
+```solidity
+contract Example {
+    function bridgeXRP(address dest, uint256 amount) public onlyOwner {
+        require(dest != address(0), "Invalid destination");
+        bridge.sendToXRPL(dest, amount);
+    }
+}
+```
+
+---
+
+## 🧭 Why is this Important for XRPL EVM?
+
+On XRPL EVM, failing to validate bridge destinations may cause unrecoverable locked assets.
+
+---
+
+## ✅ Optional
+
+🔴 Suggested Severity:
+Low / Medium / High
+
+🛠 Suggested Fix or Refactor:
+
+```
+require(dest != address(0), "Invalid destination");
+```
+
+</details>
+
+---
+
+## 💡 Example Rule Ideas to Inspire You
+
+- XRPL Bridge call validations (e.g., `sendToXRPL(dest, amount)` without `require(dest != address(0))`).
+- Proper `wXRP` deposit/withdraw patterns.
+- Safe oracle result handling.
+- Multi-signature enforcement in alignment with XRPL governance.
+- Incorrect native XRP transfer attempts inside EVM.
+
+---
+
+## 🤝 How to Submit a Rule
+
+1. **Open an Issue** using the template above.
+2. Provide good/bad code examples and reasoning.
+3. (Optional) If you want to contribute code, open a PR implementing the rule!
+
+---
+
+## ⚙️ Why Help?
+
+- Strengthen XRPL EVM security.
+- Help other XRPL developers avoid common pitfalls.
+- Showcase your expertise in the XRPL ecosystem.
+- Contribute to making this **the standard security tool for XRPL EVM**!
+
+---
+
+🚀 **Ready to propose a rule? [Open an issue now](https://github.com/hiddenciphers/xrpl-evm-auditor/issues/new/choose)**
