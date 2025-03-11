@@ -28,3 +28,7 @@ jobs:
 
       - name: ✅ Run tests
         run: npm test
+
+      - name: 🔒 Run XRPL EVM Security Audit
+        run: |
+          npx xrpl-evm-auditor analyze ./contracts --format markdown
